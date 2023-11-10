@@ -1,0 +1,86 @@
+
+model {
+  # Priors for parameters
+  mu ~ dnorm(0,0.01)
+  gam ~ dnorm(0,0.01)
+  r ~  dgamma(0.01,0.01)
+  
+  for (i in 1:m1) {
+      alpha[i] ~ dnorm(0,0.01)
+    }
+  for (j in 1:n1) {
+      delta[j] ~ dnorm(0,0.01)
+    }
+  #Constraints
+  alpha[m]<- -sum(alpha[1:m1])
+  delta[n]<- -sum(delta[1:n1])
+ # Likelihood
+  for(i in 1:n) {
+      for(j in 1:m) {
+        lambda[i,j] <- exp(mu + alpha[i] - delta[j] + gam)
+        theta[i,j] <- exp(mu + alpha[j] - delta[i])
+        H[i,j] ~ dnegbin(r/(r+lambda[i,j]),r)
+        A[i,j] ~ dnegbin(r/(r+theta[i,j]),r)
+      }
+    }
+    
+  # Simulate goals for home and away teams
+  for(i in 1:n) {
+      for(j in 1:m) {
+        SimGoalsHome[i,j] ~ dnegbin(r/(r+lambda[i,j]),r)
+        SimGoalsAway[i,j] ~ dnegbin(r/(r+theta[i,j]),r)
+        
+      # Calculate number of points won by home team in simulated game
+      # SimPointsHome[i,j] <- step(SimGoalsHome[i,j] - SimGoalsAway[i,j]) * 3 + 
+      #                      equals(SimGoalsHome[i,j], SimGoalsAway[i,j])
+    
+        SimPointsHome[i,j] <- ifelse(equals(SimGoalsHome[i,j], 
+  SimGoalsAway[i,j]),1,ifelse(step(SimGoalsHome[i,j] - SimGoalsAway[i,j]),3,0)) 
+
+        
+        
+        # Calculate number of points won by away team in simulated game
+        # SimPointsAway[i,j] <- step(SimGoalsAway[i,j] - SimGoalsHome[i,j]) * 3 + 
+        #                      equals(SimGoalsHome[i,j], SimGoalsAway[i,j])
+
+        SimPointsAway[i,j] <- ifelse(equals(SimGoalsHome[i,j], 
+  SimGoalsAway[i,j]),1,ifelse(step(SimGoalsAway[i,j] - SimGoalsHome[i,j]),3,0)) 
+        
+        
+        #ifelse(equals(H[i,j],A[i,j]),1,ifelse(step(A[i,j] - H[i,j]),3,0))
+        
+# Set FinalPointsHome[i,j] to actual points won by home team if game has already 
+# been played else, set it to points won by home team in simulated game
+        
+        
+        
+  FinalPointsHome[i,j] <- ifelse(equals(i,j), 0, ifelse(equals(P[i,j],1),
+        ifelse(equals(H[i,j],A[i,j]),1,ifelse(step(H[i,j] - A[i,j]),3,0)),
+                                                           SimPointsHome[i,j]))
+        
+# Set FinalPointsAway[i,j] to actual points won by away team if game has 
+# already been played else, set it to points won by away team in simulated game
+        
+        
+ FinalPointsAway[i,j] <- ifelse(equals(i,j), 0, ifelse(equals(P[i,j],1),
+        ifelse(equals(H[i,j],A[i,j]),1,ifelse(step(A[i,j] - H[i,j]),3,0)), 
+                                                       SimPointsAway[i,j]))
+        
+        
+      }
+    }
+# Calculate total points for each team
+for(k in 1:n) {
+  TotalPoints[k] <- sum(FinalPointsHome[k,1:m] + FinalPointsAway[1:n,k])}
+
+LeagueRank <- rank(-TotalPoints)
+
+for (k in 1:n) {
+  for (m in 1:n) {
+    LeagueRanks[k,m] <- equals(LeagueRank[k], m)
+  }
+}
+
+
+}
+
